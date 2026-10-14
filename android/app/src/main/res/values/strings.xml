@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LinguaTube</string>
+    <string name="title_activity_main">LinguaTube</string>
+    <string name="package_name">com.st4rlight3.linguatube</string>
+    <string name="custom_url_scheme">com.st4rlight3.linguatube</string>
+</resources>

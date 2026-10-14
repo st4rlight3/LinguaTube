@@ -19,3 +19,5 @@ test-results/
 playwright-report/
 *.apk
 *.aab
+*.tsbuildinfo
+backend/requirements-audit.txt
