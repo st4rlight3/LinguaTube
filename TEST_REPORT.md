@@ -20,16 +20,16 @@ External YouTube and translation calls in automated tests use deterministic mock
 
 ## Pending verification
 
-- GitHub Actions and tagged release execution.
+- Tagged release execution (main-branch GitHub Actions tests and Android build passed).
 - Live PostgreSQL migrations, Supabase login/reset/delete, and cross-device sync.
 - Live YouTube Data API search, channel and playlist browsing with a configured key.
 - Physical Android installation, launch, actual embedded video playback, quality menu availability, fullscreen, rotation, system Back and background/resume.
 - Authorized transcript timing against a real playing video and live translation billing limits.
-- Public HTTPS frontend/backend health and security configuration.
+- Public backend health and security configuration. Public frontend HTTP 200 and mobile rendering were verified separately.
 
 No Android device was attached at the time of the check. Actual playback resolution (360p through 4K) is unverified. The application imposes no resolution cap and never extracts streams.
 
-First remote Actions run: test job passed; Android failed during SDK setup requesting a retired package named `tools`. The workflow now specifies the supported packages explicitly. Full remote rerun pending.
+First remote Actions run: test job passed; Android failed during SDK setup requesting a retired package named `tools`. The workflow now specifies supported packages explicitly. Remote rerun [38685934682](https://github.com/st4rlight3/LinguaTube/actions/runs/38685934682) passed both test and Android jobs. Pages deployment also passed. An actual HTTPS browser check of https://st4rlight3.github.io/LinguaTube/ returned HTTP 200, rendered the React home screen at 412px width without horizontal overflow, and reported no uncaught page errors. This is frontend verification only, not live-service verification.
 
 ## Real-device checklist
 

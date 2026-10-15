@@ -73,11 +73,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: LinguaTube-debug-apk
           path: artifacts
-      - run: gh release create "$TAG" artifacts/app-debug.apk --repo "$REPO" --generate-notes --prerelease --title "LinguaTube $TAG · Android testing build"
+      - run: gh release create "$TAG" artifacts/app-debug.apk --repo "$REPO" --notes-file RELEASE_NOTES.md --prerelease --title "LinguaTube $TAG · Android testing build"
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}

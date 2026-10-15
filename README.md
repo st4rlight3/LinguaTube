@@ -4,6 +4,8 @@ Android-first English–Vietnamese learning with official YouTube playback and a
 
 **Status: testing build, not a production-complete service.** The local Android APK and frontend build have compiled. Live YouTube search, account sync and translation require service configuration. No fake production results or transcripts are included.
 
+Try the [public web companion](https://st4rlight3.github.io/LinguaTube/) or get an Android testing APK from [Releases](https://github.com/st4rlight3/LinguaTube/releases). The web companion supports guest/local learning; online discovery, accounts and translation are not configured. Testing APKs are debug-signed, not store-ready, and CI debug signing keys can differ between builds (an update may require uninstalling, which erases local data).
+
 ## Included
 
 - React 19, TypeScript, Vite, Tailwind; responsive mobile navigation, dark appearance and English/Vietnamese core navigation.
