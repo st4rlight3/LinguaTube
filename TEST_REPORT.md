@@ -2,6 +2,8 @@
 
 ## 0.2.0 redesign checkpoint (latest)
 
+Private Gemini follow-up: 14 additional adapter tests passed, bringing the current local backend suite to **31**. Two real Flash Lite requests generated EN–VI output for a second video, but omitted speech; output remains unapproved and private. See [trial findings](docs/GEMINI_TRIAL.md). The public service does not expose AI generation. The earlier GitHub [test/Android run](https://github.com/st4rlight3/LinguaTube/actions/runs/38701473037) and Pages deployment for `a55e3d8` succeeded. Render deployed `a55e3d8`; live config and the explicit missing-authorized-source response passed.
+
 Production build, 9 frontend unit tests, 17 backend tests and 30 browser cases passed across desktop/Android-size/iPhone-size Chromium. Tests distinguish missing source permission from provider errors, verify retry and assert that the player does not cover the English subtitle line. Real HTTPS search returned official YouTube results with statistics/duration. The APK installed on an Android 16 / API 36 x86_64 emulator; actual search and official WebView playback advanced beyond 3 seconds. Automatic publisher captions loaded 32 cues without file import; seeking to 33.25s advanced real playback and displayed the matching English/Vietnamese sentence. Vietnamese-only mode and 22px text passed. This is native-emulator evidence, not physical-device or resolution verification.
 
 Native upgrade migration verified: old PWA controller/registration/precache were removed, new APK UI loaded, and the existing guest history count remained 1. No app data reset was performed. Android bundles no longer register a PWA worker.
