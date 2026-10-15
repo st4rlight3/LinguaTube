@@ -18,6 +18,7 @@ export type Video = {
   channel: string;
   channelId: string;
   thumbnail: string;
+  cachedAt?: number;
 };
 export type Word = {
   word: string;
@@ -51,13 +52,17 @@ export function backendUrl() {
   return (
     import.meta.env.VITE_API_URL ||
     localStorage.getItem("lt.api") ||
-    "http://localhost:8000"
+    (import.meta.env.DEV ? "http://localhost:8000" : "")
   ).replace(/\/$/, "");
 }
 export async function api<T = any>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  if (!backendUrl())
+    throw new Error(
+      "The learning server is not configured yet. Set an HTTPS backend in Profile to enable YouTube search and online services.",
+    );
   const token = (await supabase?.auth.getSession())?.data.session?.access_token;
   let response: Response;
   try {
@@ -87,7 +92,34 @@ export async function api<T = any>(
 }
 export function readLocal(kind: Kind): Saved[] {
   try {
-    return JSON.parse(localStorage.getItem("lt." + kind) || "[]");
+    const rows: Saved[] = JSON.parse(
+      localStorage.getItem("lt." + kind) || "[]",
+    );
+    if (!Array.isArray(rows)) return [];
+    let changed = false;
+    for (const row of rows) {
+      const v =
+        kind === "bookmark"
+          ? row.payload?.video
+          : ["favorite", "history"].includes(kind)
+            ? row.payload
+            : null;
+      if (
+        v &&
+        Date.now() - (v.cachedAt || 0) > 30 * 86400000 &&
+        v.title !== "Saved YouTube video"
+      ) {
+        Object.assign(v, {
+          title: "Saved YouTube video",
+          channel: "",
+          channelId: "",
+          thumbnail: "",
+        });
+        changed = true;
+      }
+    }
+    if (changed) localStorage.setItem("lt." + kind, JSON.stringify(rows));
+    return rows;
   } catch {
     return [];
   }
@@ -150,6 +182,7 @@ export function clock(seconds: number) {
 }
 export function asVideo(item: any): Video {
   return {
+    cachedAt: Date.now(),
     id:
       item.id?.videoId ||
       item.contentDetails?.videoId ||
@@ -163,6 +196,48 @@ export function asVideo(item: any): Video {
       item.snippet.thumbnails?.default?.url ||
       "",
   };
+}
+
+// Offline parsing never fetches captions; only explicitly uploaded text enters here.
+export function parseTranscript(content: string): Segment[] {
+  if (content.length > 250000)
+    throw new Error("Transcript files must be smaller than 250 KB.");
+  const timestamp = (input: string) => {
+    if (!/^(?:\d{2,}:)?\d{2}:\d{2}[.,]\d{3}$/.test(input))
+      throw new Error("Invalid SRT/VTT timestamp.");
+    const parts = input.replace(",", ".").split(":").map(Number);
+    if (parts.at(-1)! >= 60 || parts.at(-2)! >= 60)
+      throw new Error("Invalid SRT/VTT timestamp.");
+    return parts.reduce((total, part) => total * 60 + part, 0);
+  };
+  const segments: Segment[] = [];
+  for (const block of content
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n/g, "\n")
+    .split(/\n\s*\n/)) {
+    const lines = block.trim().split("\n");
+    const index = lines.findIndex((line) => line.includes("-->"));
+    if (index < 0 || lines[0].startsWith("NOTE")) continue;
+    const times = lines[index].split("-->");
+    const start = timestamp(times[0].trim());
+    const end = timestamp(times[1]?.trim().split(/\s+/)[0] || "");
+    if (start < 0 || end <= start || end > 86400)
+      throw new Error("Invalid transcript cue bounds.");
+    const en = lines
+      .slice(index + 1)
+      .join(" ")
+      .replace(/<[^>]*>/g, "")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+    if (en.trim())
+      segments.push({ id: String(segments.length), start, end, en, vi: "" });
+  }
+  if (!segments.length || segments.length > 3000)
+    throw new Error("Upload an SRT/VTT file with 1–3000 valid cues.");
+  return segments.sort((a, b) => a.start - b.start);
 }
 
 let ytPromise: Promise<typeof YT> | undefined;

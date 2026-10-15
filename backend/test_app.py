@@ -9,6 +9,8 @@ import app as module
 def client(monkeypatch):
     engine = create_engine('sqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
     module.Base.metadata.create_all(engine)
+    monkeypatch.setattr(module, 'engine', engine)
+    module.youtube_cache.clear()
     def database():
         with Session(engine) as session:
             yield session
@@ -94,3 +96,42 @@ def test_invalid_payloads(client):
 def test_token_rejected_when_auth_unconfigured(client,monkeypatch):
     monkeypatch.setattr(module.settings,'supabase_url','')
     assert client.get('/records/history',headers={'Authorization':'Bearer forged'}).status_code==503
+
+def test_oversized_body_rejected_before_parsing(client):
+    assert client.post('/transcripts/parse', content=b'x'*1_000_001).status_code == 413
+
+def test_youtube_cache_and_global_quota(client, monkeypatch):
+    monkeypatch.setattr(module.settings, 'youtube_api_key', 'test-key')
+    monkeypatch.setattr(module.settings, 'youtube_daily_quota_limit', 100)
+    calls=[]
+    async def provider(url, **kwargs):
+        calls.append(url)
+        return {'items': []}
+    monkeypatch.setattr(module, 'external_json', provider)
+    assert client.get('/youtube/search?q=hello').status_code == 200
+    assert client.get('/youtube/search?q=hello').status_code == 200
+    assert len(calls) == 1
+    assert client.get('/youtube/search?q=world').status_code == 429
+
+def test_expired_youtube_metadata_removed(client):
+    identity('alice')
+    client.put('/records/favorite', json={'key':'video','payload':{'id':'video','title':'Old title','thumbnail':'old.jpg','cachedAt':1}})
+    result=client.get('/records/favorite').json()[0]['payload']
+    assert result['id']=='video'
+    assert result['title']=='Saved YouTube video'
+    assert result['thumbnail']==''
+
+def test_signed_jwt_validation(client,monkeypatch):
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from types import SimpleNamespace
+    import jwt
+    import time
+    key = rsa.generate_private_key(public_exponent=65537,key_size=2048)
+    monkeypatch.setattr(module.settings,'supabase_url','https://auth.example.test')
+    monkeypatch.setattr(module,'jwks_client',lambda url: SimpleNamespace(get_signing_key_from_jwt=lambda token:SimpleNamespace(key=key.public_key())))
+    claims={'sub':'alice','aud':'authenticated','iss':'https://auth.example.test/auth/v1','exp':int(time.time())+60}
+    token=jwt.encode(claims,key,algorithm='RS256')
+    assert client.get('/records/history',headers={'Authorization':'Bearer '+token}).status_code==200
+    for changed in [{'exp':1},{'aud':'another-service'},{'iss':'https://attacker.invalid'}]:
+        invalid=jwt.encode({**claims,**changed},key,algorithm='RS256')
+        assert client.get('/records/history',headers={'Authorization':'Bearer '+invalid}).status_code==401

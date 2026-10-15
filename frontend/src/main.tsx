@@ -39,6 +39,7 @@ import {
   backendUrl,
   clock,
   loadYouTube,
+  parseTranscript,
   readLocal,
   records,
   remove,
@@ -119,6 +120,7 @@ function App() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [email, setEmail] = useState("");
+  const [recovering, setRecovering] = useState(false);
   const [saved, setSaved] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [words, setWords] = useState<Word[]>([]);
@@ -161,8 +163,13 @@ function App() {
     supabase?.auth
       .getSession()
       .then(({ data }) => setEmail(data.session?.user.email || ""));
-    const sub = supabase?.auth.onAuthStateChange((_event, session) => {
+    const sub = supabase?.auth.onAuthStateChange((event, session) => {
       setEmail(session?.user.email || "");
+      if (event === "PASSWORD_RECOVERY") {
+        setRecovering(true);
+        setVideo(null);
+        setPage("profile");
+      }
       setTimeout(refresh, 0);
     });
     return () => sub?.data.subscription.unsubscribe();
@@ -811,6 +818,7 @@ function App() {
               )}
               {page === "profile" && (
                 <Profile
+                  recovering={recovering}
                   email={email}
                   notify={notify}
                   lang={lang}
@@ -976,6 +984,10 @@ function Player({
   const recorder = useRef<MediaRecorder | null>(null);
   const micStream = useRef<MediaStream | null>(null);
   const audioUrl = useRef("");
+  const cuesRef = useRef(segments);
+  useEffect(() => {
+    cuesRef.current = segments;
+  }, [segments]);
   useEffect(() => {
     let cancelled = false;
     records("transcript")
@@ -1035,7 +1047,12 @@ function Player({
       const p = player.current;
       if (p?.getCurrentTime && p.getPlayerState?.() === 1) {
         const current = p.getCurrentTime();
-        setNow(current);
+        setNow((previous) =>
+          activeCue(cuesRef.current, previous) ===
+          activeCue(cuesRef.current, current)
+            ? previous
+            : current,
+        );
         if (loop.current && current >= loop.current.end)
           p.seekTo(loop.current.start, true);
       }
@@ -1055,6 +1072,17 @@ function Player({
       clearInterval(timer);
       lifecycle.then((h) => h.remove());
       document.removeEventListener("visibilitychange", visibility);
+      const position = player.current?.getCurrentTime?.();
+      if (position && position > 0) {
+        save("history", video.id, {
+          ...video,
+          resumeAt: position,
+          watchedAt: Date.now(),
+        }).catch((e) => notify(e.message));
+        save("progress", video.id, { position, updatedAt: Date.now() }).catch(
+          (e) => notify(e.message),
+        );
+      }
       player.current?.destroy();
       player.current = null;
       micStream.current?.getTracks().forEach((t) => t.stop());
@@ -1077,13 +1105,7 @@ function Player({
       return;
     }
     try {
-      const result = await api<{ segments: Segment[] }>("/transcripts/parse", {
-        method: "POST",
-        body: JSON.stringify({
-          content: await file.text(),
-          rights_confirmed: true,
-        }),
-      });
+      const result = { segments: parseTranscript(await file.text()) };
       await save("transcript", video.id, {
         segments: result.segments,
         source: "user-upload",
@@ -1099,6 +1121,10 @@ function Player({
     try {
       const translated = [...segments];
       for (let start = 0; start < translated.length;) {
+        if (translated[start].vi) {
+          start++;
+          continue;
+        }
         const batch: Segment[] = [];
         let length = 0;
         while (start + batch.length < translated.length && batch.length < 50) {
@@ -1107,7 +1133,7 @@ function Player({
             throw new Error(
               "A transcript sentence exceeds the translation limit.",
             );
-          if (length + s.en.length > 6000) break;
+          if (length + s.en.length > 6000 || s.vi) break;
           batch.push(s);
           length += s.en.length;
         }
@@ -1123,6 +1149,11 @@ function Player({
           translated[start + i] = { ...s, vi: result.texts[i] };
         });
         start += batch.length;
+        await save("transcript", video.id, {
+          segments: translated,
+          source: "user-upload",
+        });
+        setSegments([...translated]);
       }
       await save("transcript", video.id, {
         segments: translated,
@@ -1887,6 +1918,7 @@ function Vocabulary({
 }
 
 function Profile({
+  recovering,
   email,
   notify,
   lang,
@@ -1895,6 +1927,7 @@ function Profile({
   setDark,
   refresh,
 }: {
+  recovering: boolean;
   email: string;
   notify: (s: string) => void;
   lang: "en" | "vi";
@@ -1905,10 +1938,20 @@ function Profile({
 }) {
   const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState(recovering ? "update" : "login");
+  useEffect(() => {
+    if (recovering) setMode("update");
+  }, [recovering]);
   const [url, setUrl] = useState(backendUrl());
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
+  useEffect(() => {
+    records("profile")
+      .then((rows) =>
+        setName(rows.find((r) => r.key === "me")?.payload.name || ""),
+      )
+      .catch((e) => notify(e.message));
+  }, [email, notify]);
   const [status, setStatus] = useState("");
   async function auth(e: React.FormEvent) {
     e.preventDefault();
@@ -1923,7 +1966,10 @@ function Profile({
           ? await supabase.auth.signUp({ email: address, password })
           : mode === "reset"
             ? await supabase.auth.resetPasswordForEmail(address, {
-                redirectTo: window.location.origin,
+                redirectTo: new URL(
+                  import.meta.env.BASE_URL,
+                  window.location.origin,
+                ).href,
               })
             : mode === "update"
               ? await supabase.auth.updateUser({ password })

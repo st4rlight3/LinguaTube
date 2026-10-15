@@ -3,6 +3,7 @@ import asyncio
 import hashlib
 import re
 import time
+from collections import OrderedDict
 from datetime import datetime, timezone, timedelta
 from functools import lru_cache
 from typing import Literal
@@ -28,6 +29,7 @@ class Settings(BaseSettings):
     supabase_url: str = ''
     supabase_service_role_key: str = ''
     youtube_api_key: str = ''
+    youtube_daily_quota_limit: int = 9000
     cors_origins: list[str] = ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://com.st4rlight3.linguatube']
     translation_url: str = ''
     translation_api_key: str = ''
@@ -90,20 +92,40 @@ def user(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> 
 
 
 limiter = Limiter(key_func=get_remote_address, storage_uri=settings.rate_limit_storage_uri)
+class RequestSizeLimit:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] != 'http' or scope.get('method') not in {'POST', 'PUT'}:
+            return await self.app(scope, receive, send)
+        messages = []
+        length = 0
+        while True:
+            message = await receive()
+            if message['type'] == 'http.disconnect':
+                return
+            length += len(message.get('body', b''))
+            if length > 1_000_000:
+                return await Response('Request is too large.', status_code=413)(scope, receive, send)
+            messages.append(message)
+            if not message.get('more_body', False):
+                break
+        async def replay():
+            return messages.pop(0) if messages else await receive()
+        await self.app(scope, replay, send)
+
+
 app = FastAPI(title='LinguaTube', version='0.1.0')
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
                    allow_methods=['GET', 'POST', 'PUT', 'DELETE'], allow_headers=['Authorization', 'Content-Type'])
+app.add_middleware(RequestSizeLimit)
 
 
 @app.middleware('http')
 async def secure_headers(request: Request, call_next):
-    # All upload payloads are JSON; reject oversized bodies even without Content-Length.
-    if request.method in {'POST', 'PUT'}:
-        body = await request.body()
-        if len(body) > 1_000_000:
-            return Response('Request is too large.', status_code=413)
     response = await call_next(request)
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Cache-Control'] = 'no-store'
@@ -135,11 +157,40 @@ async def external_json(url: str, *, params=None, body=None, headers=None):
         raise HTTPException(502, 'The provider could not be reached. Please try again.') from None
 
 
+def reserve_budget(session: Session, key: str, cost: int, limit: int) -> bool:
+    from sqlalchemy.exc import IntegrityError
+    if not session.get(Budget, key):
+        session.add(Budget(key=key, used=0))
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+    reserved = session.execute(update(Budget).where(Budget.key == key, Budget.used + cost <= limit).values(used=Budget.used + cost))
+    session.commit()
+    return bool(reserved.rowcount)
+
+
+youtube_cache = OrderedDict()
+
+
 async def youtube(resource: str, **params):
     if not settings.youtube_api_key:
         raise HTTPException(503, 'YouTube search is not configured. The server needs a YouTube Data API key.')
-    return await external_json('https://www.googleapis.com/youtube/v3/' + resource,
-                               params={**params, 'key': settings.youtube_api_key})
+    cache_key = (resource, tuple(sorted(params.items())))
+    cached = youtube_cache.get(cache_key)
+    if cached and time.monotonic() - cached[0] < 300:
+        return cached[1]
+    with Session(engine) as session:
+        bucket = 'youtube:' + datetime.now(timezone.utc).date().isoformat()
+        if not reserve_budget(session, bucket, 100 if resource == 'search' else 1, settings.youtube_daily_quota_limit):
+            raise HTTPException(429, 'Today’s YouTube search allowance has been reached. Please return tomorrow.')
+    result = await external_json('https://www.googleapis.com/youtube/v3/' + resource,
+                                 params={**params, 'key': settings.youtube_api_key})
+    youtube_cache[cache_key] = (time.monotonic(), result)
+    youtube_cache.move_to_end(cache_key)
+    while len(youtube_cache) > 128:
+        youtube_cache.popitem(last=False)
+    return result
 
 
 @app.get('/youtube/search')
@@ -208,7 +259,20 @@ class RecordInput(BaseModel):
 
 @app.get('/records/{kind}')
 def list_records(kind: Kind, owner: str = Depends(user), session: Session = Depends(db)):
-    records = session.scalars(select(Record).where(Record.owner == owner, Record.kind == kind).order_by(Record.updated_at.desc()).limit(1000))
+    records = list(session.scalars(select(Record).where(Record.owner == owner, Record.kind == kind).order_by(Record.updated_at.desc()).limit(1000)))
+    # Expire cached YouTube metadata; keep the user's own bookmark and video reference.
+    for record in records:
+        payload = dict(record.payload)
+        video = payload.get('video') if kind == 'bookmark' else payload if kind in {'favorite', 'history'} else None
+        if isinstance(video, dict):
+            cached_at = video.get('cachedAt')
+            fallback = record.updated_at.replace(tzinfo=timezone.utc).timestamp() * 1000
+            if not isinstance(cached_at, (float, int)):
+                cached_at = fallback
+            if time.time() * 1000 - cached_at > 30 * 86400000:
+                video = {**video, 'title': 'Saved YouTube video', 'channel': '', 'channelId': '', 'thumbnail': ''}
+                record.payload = {**payload, 'video': video} if kind == 'bookmark' else video
+    session.commit()
     return [{'key': r.key, 'payload': r.payload, 'updatedAt': r.updated_at} for r in records]
 
 
@@ -298,17 +362,7 @@ async def translate(request: Request, data: TranslationInput, owner: str = Depen
         raise HTTPException(503, 'Translation provider must use HTTPS.')
     key = owner + ':' + datetime.now(timezone.utc).date().isoformat()
     cost = sum(map(len, data.texts))
-    # Insert once, then atomically reserve budget, including concurrent workers.
-    from sqlalchemy.exc import IntegrityError
-    if not session.get(Budget, key):
-        session.add(Budget(key=key, used=0))
-        try:
-            session.commit()
-        except IntegrityError:
-            session.rollback()
-    reserved = session.execute(update(Budget).where(Budget.key == key, Budget.used + cost <= settings.translation_daily_char_limit).values(used=Budget.used + cost))
-    session.commit()
-    if not reserved.rowcount:
+    if not reserve_budget(session, key, cost, settings.translation_daily_char_limit):
         raise HTTPException(429, 'Daily translation character allowance reached.')
     body = {'q': data.texts, 'source': data.source, 'target': data.target, 'format': 'text'}
     if settings.translation_api_key:
