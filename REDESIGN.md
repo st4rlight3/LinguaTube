@@ -13,8 +13,9 @@ The watch screen keeps the official iframe controls and native Android fullscree
 - 15 backend tests passed, including metadata enrichment, embedding restrictions and public channel playlists.
 - Existing 8 unit tests passed before the latest presentation adjustments.
 - Android version code is 2, version name 0.2.0; new APK build and real-service verification are still required.
-- Google Cloud UI currently fails to fetch project data. A project-creation attempt is not evidence that the project exists, and no YouTube key has been obtained.
-- Render free service preparation is in progress; account sync remains unconfigured.
+- Google Cloud project `linguatube-st4rlight3` was created through the official CLI after explicit user authorization. YouTube Data API is enabled; server key is restricted to that API and the Render Singapore egress ranges. No billing was enabled.
+- HTTPS backend https://linguatube-api-w751.onrender.com is live. Health and actual official YouTube search passed: 12 English-conversation videos, authoritative view counts/durations. Frontend/Android builds use the repository VITE_API_URL variable.
+- Render is a free single instance and can sleep. Initial discovery deployment uses ephemeral SQLite for request budgets only; Supabase accounts/translation remain off, and guest learning remains on device. Persistent cloud records are not ready.
 
 Do not tag a finished redesign release or claim the backend issue resolved before the real HTTPS service, official search and actual video playback have been verified. Physical Android tests remain a separate gate.
 

@@ -200,6 +200,8 @@ export function Player({
   const transcriptScroll = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [now, setNow] = useState(0);
+  const [playbackState, setPlaybackState] = useState('loading');
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [mode, setMode] = useState("both");
   const [size, setSize] = useState(17);
@@ -256,10 +258,12 @@ export function Player({
           },
           events: {
             onReady: (event) => {
+              setPlaybackState('ready');
               setRates(event.target.getAvailablePlaybackRates());
               const resume = (video as Video & { resumeAt?: number }).resumeAt;
               if (resume) event.target.seekTo(resume, true);
             },
+            onStateChange: (event) => setPlaybackState(({1:'playing',2:'paused',3:'buffering',0:'ended',5:'cued'} as Record<number,string>)[event.data] || 'unstarted'),
             onError: (event) =>
               setError(
                 (
@@ -282,6 +286,7 @@ export function Player({
       const p = player.current;
       if (p?.getCurrentTime && p.getPlayerState?.() === 1) {
         const current = p.getCurrentTime();
+        setElapsed(Math.floor(current));
         setNow((previous) =>
           activeCue(cuesRef.current, previous) ===
           activeCue(cuesRef.current, current)
@@ -501,7 +506,7 @@ export function Player({
       </button>
       <div className="learning-layout">
         <section className="watch-panel">
-          <div className="player-frame" ref={container}>
+          <div className="player-frame" ref={container} data-playback-state={playbackState} data-playback-seconds={elapsed}>
             <div ref={holder} className="youtube-player" />
           </div>
           {error && <Notice message={error} />}
