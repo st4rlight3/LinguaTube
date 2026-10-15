@@ -4,7 +4,7 @@
 
 Source repository: https://github.com/st4rlight3/LinguaTube (public).
 Public frontend: https://st4rlight3.github.io/LinguaTube/ (deployment and browser rendering verified).
-No production backend, database, authentication tenant or translation provider has been configured yet. A local APK build is not proof of live integration or device playback.
+Discovery backend: https://linguatube-api-w751.onrender.com . Official YouTube API search and metadata are verified live. The key is server-only, limited to YouTube Data API and Render Singapore outbound ranges. No Google Cloud billing is enabled. Render uses a free single instance that can sleep. Initial SQLite budget storage is ephemeral; persistent PostgreSQL, authentication and translation are not provisioned, and cloud accounts remain disabled. Guest records stay on device. Do not enable cloud accounts against ephemeral storage.
 
 ## Backend
 

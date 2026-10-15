@@ -15,6 +15,7 @@ const item = {
   contentDetails: { duration: "PT12M34S" },
 };
 test.beforeEach(async ({ page }) => {
+  await page.route('**/transcripts/*',r=>r.fulfill({json:{available:false,segments:[]}}));
   await page.route("**/youtube/popular*", (r) =>
     r.fulfill({ json: { items: [item], nextPageToken: "two" } }),
   );
@@ -51,6 +52,15 @@ test("video feed, pagination and unsupported features are explicit", async ({
     .getByRole("button", { name: "Subscriptions", exact: true })
     .click();
   await expect(page.getByText(/Google OAuth/)).toBeVisible();
+});
+
+test('publisher subtitles load automatically without a file import',async({page})=>{
+ await page.route('**/transcripts/abcdefghijk',r=>r.fulfill({json:{available:true,source:'Licensed publisher test fixture',segments:[{id:'0',start:0,end:5,en:'This is an authorized caption.',vi:'Đây là phụ đề được phép sử dụng.'}]}}));
+ await page.route('**/iframe_api',r=>r.fulfill({contentType:'application/javascript',body:`window.YT={Player:function(m,o){this.destroy=()=>{};this.getCurrentTime=()=>1;this.getPlayerState=()=>1;this.getAvailablePlaybackRates=()=>[1];this.pauseVideo=()=>{};setTimeout(()=>o.events.onReady({target:this}),0)}};window.onYouTubeIframeAPIReady();`}));
+ await page.goto('/');await page.getByRole('button',{name:'YouTube Fixture video Fixture channel'}).click();
+ await expect(page.getByLabel('Synchronized bilingual subtitles')).toContainText('This is an authorized caption.');
+ await expect(page.getByLabel('Synchronized bilingual subtitles')).toContainText('Đây là phụ đề được phép sử dụng.');
+ await expect(page.getByText('Licensed publisher test fixture')).toBeVisible();
 });
 test("channel uploads, playlist browsing and local follows persist", async ({
   page,

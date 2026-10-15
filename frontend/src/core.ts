@@ -23,6 +23,7 @@ export type Video = {
   publishedAt?: string;
   duration?: string;
   description?: string;
+  bilingualAvailable?: boolean;
 };
 export type Word = {
   word: string;
@@ -188,6 +189,29 @@ export function reviewWord(
 export function clock(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 }
+export function decodeYouTubeText(value: string): string {
+  const named: Record<string, string> = {
+    amp: "&",
+    quot: '"',
+    apos: "'",
+    lt: "<",
+    gt: ">",
+    nbsp: " ",
+  };
+  return value.replace(
+    /&(#x[\da-f]+|#\d+|amp|quot|apos|lt|gt|nbsp);/gi,
+    (entity, code: string) => {
+      if (code[0] !== "#") return named[code.toLowerCase()] || entity;
+      const point =
+        code[1].toLowerCase() === "x"
+          ? parseInt(code.slice(2), 16)
+          : Number(code.slice(1));
+      return point > 0 && point <= 0x10ffff
+        ? String.fromCodePoint(point)
+        : entity;
+    },
+  );
+}
 export function asVideo(item: any): Video {
   return {
     cachedAt: Date.now(),
@@ -196,8 +220,10 @@ export function asVideo(item: any): Video {
       item.contentDetails?.videoId ||
       item.snippet?.resourceId?.videoId ||
       item.id,
-    title: item.snippet?.title || 'Unavailable video',
-    channel: item.snippet.videoOwnerChannelTitle || item.snippet.channelTitle,
+    title: decodeYouTubeText(item.snippet?.title || "Unavailable video"),
+    channel: decodeYouTubeText(
+      item.snippet.videoOwnerChannelTitle || item.snippet.channelTitle || "",
+    ),
     channelId: item.snippet.videoOwnerChannelId || item.snippet.channelId,
     thumbnail:
       item.snippet.thumbnails?.maxres?.url ||
@@ -209,6 +235,7 @@ export function asVideo(item: any): Video {
     publishedAt: item.snippet.publishedAt,
     duration: item.contentDetails?.duration,
     description: item.snippet.description,
+    bilingualAvailable: item.bilingualAvailable === true,
   };
 }
 

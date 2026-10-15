@@ -1,4 +1,42 @@
 /* Android-first video platform. Learning controls are a companion to the player. */
+.bilingual-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: #526ce0;
+  color: white;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  z-index: 1;
+}
+.caption-source {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+.caption-source small {
+  width: 100%;
+  font-size: 10px;
+}
+.caption-source a {
+  color: var(--accent);
+}
+.platform .find-bilingual {
+  display: flex;
+  margin: 0 auto 22px;
+}
+.subtitle-ready {
+  padding: 12px 16px;
+  color: var(--accent);
+  font-size: 13px;
+  background: var(--surface);
+}
 .sentence-translation {
   display: block;
   text-align: left;
@@ -8,7 +46,22 @@
   padding: 6px 0;
   color: var(--muted);
 }
-@media(max-width:719px){.platform .watch-panel{display:contents}.platform .player-frame{position:sticky;top:calc(60px + env(safe-area-inset-top));z-index:25;min-height:200px;flex-shrink:0}.platform .player-frame:fullscreen{top:0;min-height:0}}
+@media (max-width: 719px) {
+  .platform .watch-panel {
+    display: contents;
+  }
+  .platform .player-frame {
+    position: sticky;
+    top: calc(60px + env(safe-area-inset-top));
+    z-index: 25;
+    min-height: 200px;
+    flex-shrink: 0;
+  }
+  .platform .player-frame:fullscreen {
+    top: 0;
+    min-height: 0;
+  }
+}
 .current-subtitles {
   padding: 14px 16px;
   background: #191d30;

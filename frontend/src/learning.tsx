@@ -182,6 +182,7 @@ export function Player({
   onSave,
   lang,
   onChannel,
+  onFindBilingual,
 }: {
   video: Video;
   queue: Video[];
@@ -191,16 +192,24 @@ export function Player({
   onSave: () => void;
   lang: "en" | "vi";
   onChannel?: () => void;
+  onFindBilingual?: () => void;
 }) {
   const holder = useRef<HTMLDivElement>(null);
   const player = useRef<YT.Player | null>(null);
   const container = useRef<HTMLDivElement>(null);
   const loop = useRef<{ start: number; end: number } | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
+  const [sourceInfo, setSourceInfo] = useState<{
+    source: string;
+    sourceUrl?: string;
+    translationCredit?: string;
+  } | null>(null);
+  const [sourceStatus, setSourceStatus] = useState("checking");
+  const sourceRequest = useRef(0);
   const transcriptScroll = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [now, setNow] = useState(0);
-  const [playbackState, setPlaybackState] = useState('loading');
+  const [playbackState, setPlaybackState] = useState("loading");
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [mode, setMode] = useState("both");
@@ -227,14 +236,30 @@ export function Player({
   }, [segments]);
   useEffect(() => {
     let cancelled = false;
+    const sourceRevision = ++sourceRequest.current;
     records("transcript")
-      .then((rows) => {
-        if (!cancelled)
-          setSegments(
-            rows.find((r) => r.key === video.id)?.payload.segments || [],
-          );
+      .then(async (rows) => {
+        const local = rows.find((r) => r.key === video.id)?.payload;
+        if (local?.segments?.length) {
+          if (!cancelled && sourceRevision === sourceRequest.current) {
+            setSegments(local.segments);
+            setSourceInfo({ source: "Your imported transcript" });
+            setSourceStatus("available");
+          }
+          return;
+        }
+        const published = await api("/transcripts/" + video.id);
+        if (cancelled || sourceRevision !== sourceRequest.current) return;
+        if (published.available) {
+          setSegments(published.segments);
+          setSourceInfo(published);
+          setSourceStatus("available");
+        } else setSourceStatus("missing");
       })
-      .catch((e) => notify(e.message));
+      .catch((e) => {
+        if (!cancelled && sourceRevision === sourceRequest.current)
+          setSourceStatus("Could not check subtitle source: " + e.message);
+      });
     records("favorite")
       .then((rows) => {
         if (!cancelled) setFavorite(rows.some((r) => r.key === video.id));
@@ -258,12 +283,23 @@ export function Player({
           },
           events: {
             onReady: (event) => {
-              setPlaybackState('ready');
+              setPlaybackState("ready");
               setRates(event.target.getAvailablePlaybackRates());
               const resume = (video as Video & { resumeAt?: number }).resumeAt;
               if (resume) event.target.seekTo(resume, true);
             },
-            onStateChange: (event) => setPlaybackState(({1:'playing',2:'paused',3:'buffering',0:'ended',5:'cued'} as Record<number,string>)[event.data] || 'unstarted'),
+            onStateChange: (event) =>
+              setPlaybackState(
+                (
+                  {
+                    1: "playing",
+                    2: "paused",
+                    3: "buffering",
+                    0: "ended",
+                    5: "cued",
+                  } as Record<number, string>
+                )[event.data] || "unstarted",
+              ),
             onError: (event) =>
               setError(
                 (
@@ -392,7 +428,10 @@ export function Player({
         segments: result.segments,
         source: "user-upload",
       });
+      sourceRequest.current++;
       setSegments(result.segments);
+      setSourceInfo({ source: "Your imported transcript" });
+      setSourceStatus("available");
       notify("Transcript imported. Tap any sentence to listen.");
     } catch (e) {
       notify((e as Error).message);
@@ -506,10 +545,22 @@ export function Player({
       </button>
       <div className="learning-layout">
         <section className="watch-panel">
-          <div className="player-frame" ref={container} data-playback-state={playbackState} data-playback-seconds={elapsed}>
+          <div
+            className="player-frame"
+            ref={container}
+            data-playback-state={playbackState}
+            data-playback-seconds={elapsed}
+          >
             <div ref={holder} className="youtube-player" />
           </div>
           {error && <Notice message={error} />}
+          {segments.length > 0 && active < 0 && (
+            <div className="subtitle-ready">
+              {lang === "vi"
+                ? "Phụ đề đã sẵn sàng · nhấn câu trong bảng để bắt đầu"
+                : "Subtitles ready · tap a sentence in the transcript to begin"}
+            </div>
+          )}
           {active >= 0 && (
             <div
               className="current-subtitles"
@@ -655,6 +706,23 @@ export function Player({
           </div>
           {tab === "transcript" ? (
             <>
+              {sourceInfo && (
+                <div className="caption-source">
+                  <b>{sourceInfo.source}</b>
+                  {sourceInfo.sourceUrl && (
+                    <a
+                      href={sourceInfo.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Source
+                    </a>
+                  )}
+                  {sourceInfo.translationCredit && (
+                    <small>{sourceInfo.translationCredit}</small>
+                  )}
+                </div>
+              )}
               <div className="transcript-options">
                 <select
                   aria-label="Transcript language"
@@ -809,11 +877,31 @@ export function Player({
                   </div>
                 </>
               ) : (
-                <Empty
-                  icon={Languages}
-                  title="Bring your own transcript"
-                  text="Bilingual transcripts aren't available for every YouTube video. Import an SRT or VTT file you are allowed to use; normal playback stays available."
-                />
+                <>
+                  <Empty
+                    icon={Languages}
+                    title={
+                      sourceStatus === "checking"
+                        ? "Checking subtitle source…"
+                        : "No bilingual transcript for this video yet"
+                    }
+                    text={
+                      sourceStatus.startsWith("Could not")
+                        ? sourceStatus
+                        : "YouTube captions and the bilingual companion are separate. Choose an EN + VI video, or import transcripts you are allowed to use."
+                    }
+                  />
+                  {sourceStatus !== "checking" && onFindBilingual && (
+                    <button
+                      className="primary find-bilingual"
+                      onClick={onFindBilingual}
+                    >
+                      {lang === "vi"
+                        ? "Xem video có phụ đề EN + VI"
+                        : "Browse videos with EN + VI"}
+                    </button>
+                  )}
+                </>
               )}
               <div className="upload-box">
                 <label>

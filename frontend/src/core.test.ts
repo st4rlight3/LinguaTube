@@ -4,6 +4,7 @@ import {
   reviewWord,
   clock,
   parseTranscript,
+  decodeYouTubeText,
   type Segment,
   type Word,
 } from "./core";
@@ -11,6 +12,13 @@ const cues: Segment[] = [
   { id: "0", start: 1, end: 2, en: "Hello", vi: "Xin chào" },
   { id: "1", start: 2, end: 4, en: "World", vi: "Thế giới" },
 ];
+it("decodes YouTube metadata entities as plain text", () => {
+  expect(decodeYouTubeText("You&#39;ll learn &amp; practice &#x1f4da;")).toBe(
+    "You'll learn & practice 📚",
+  );
+  expect(decodeYouTubeText("&lt;script&gt;")).toBe("<script>");
+  expect(decodeYouTubeText("&#999999999;")).toBe("&#999999999;");
+});
 describe("offline transcript import", () => {
   it("preserves times and strips formatting from SRT", () => {
     expect(

@@ -35,6 +35,29 @@ def test_authentication_required(client):
     assert client.get('/records/vocabulary').status_code == 401
     assert client.put('/records/favorite', json={'key':'video', 'payload':{}}).status_code == 401
 
+
+def test_publisher_bilingual_transcript_and_missing_source(client):
+    result = client.get('/transcripts/ZcRpbBTTu6k').json()
+    assert result['available'] is True
+    assert result['sourceUrl'] == 'https://svs.gsfc.nasa.gov/10157/'
+    assert len(result['segments']) == 32
+    assert all(s['en'] and s['vi'] and s['end'] > s['start'] for s in result['segments'])
+    assert result['segments'][4]['start'] == 33.25
+    assert client.get('/transcripts/abcdefghijk').json()['available'] is False
+    assert client.get('/transcripts/invalid').status_code == 422
+
+
+def test_bilingual_feed_uses_live_metadata_not_bundled_video_cards(client, monkeypatch):
+    monkeypatch.setattr(module.settings, 'youtube_api_key', 'test-not-a-real-key')
+    async def provider(url, **kwargs):
+        assert url.endswith('/videos')
+        assert kwargs['params']['id'] == 'ZcRpbBTTu6k'
+        return {'items': [{'id': 'ZcRpbBTTu6k', 'snippet': {'title': 'Live provider title'}, 'status': {'embeddable': True}}]}
+    monkeypatch.setattr(module, 'external_json', provider)
+    result = client.get('/youtube/bilingual').json()['items'][0]
+    assert result['snippet']['title'] == 'Live provider title'
+    assert result['bilingualAvailable'] is True
+
 def test_owner_isolation_and_updates(client):
     identity('alice')
     assert client.put('/records/vocabulary', json={'key':'hello','payload':{'meaning':'xin chào'}}).status_code == 200

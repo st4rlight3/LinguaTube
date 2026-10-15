@@ -12,9 +12,9 @@ export default defineConfig({
       manifest: {
         name: "LinguaTube",
         short_name: "LinguaTube",
-        description: "Learn English through videos you love.",
-        theme_color: "#102b2c",
-        background_color: "#f6f7f2",
+        description: "Discover videos. Watch with synchronized English and Vietnamese transcripts.",
+        theme_color: "#101114",
+        background_color: "#101114",
         display: "standalone",
         start_url: ".",
         icons: [

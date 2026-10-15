@@ -1,5 +1,13 @@
 # Test report — 2026-10-15
 
+## 0.2.0 redesign checkpoint (latest)
+
+Production build, 9 frontend unit tests, 17 backend tests and 27 browser cases passed (24 full-suite cases plus 3 new automatic-publisher-caption cases across the same viewports). Real HTTPS search returned official YouTube results with statistics/duration. The APK installed on an Android 16 / API 36 x86_64 emulator; actual search and official WebView playback advanced beyond 3 seconds. This is native-emulator evidence, not physical-device or resolution verification. A signed-in browser also displayed actual video frames and advancing playback.
+
+The automated anonymous desktop headless playback probe did not pass (buffering/unstarted); it is not represented as success. Native emulator playback and signed-in browser verification are separate observations. Initial publisher captions are being deployed and tested with real playback before a new prerelease is announced.
+
+Older 0.1.0 results below are historical and do not supersede this checkpoint.
+
 ## Verified locally
 
 | Check | Result | Scope |

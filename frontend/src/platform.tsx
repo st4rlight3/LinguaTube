@@ -65,6 +65,7 @@ const navigation = [
 ] as const;
 const topics = [
   { name: "All", vi: "Tất cả", category: "0" },
+  { name: "EN + VI", vi: "EN + VI", category: "bilingual" },
   { name: "Music", vi: "Âm nhạc", category: "10" },
   {
     name: "Everyday English",
@@ -113,6 +114,9 @@ export function FeedCard({
       aria-label={`YouTube ${type ? type + " " : ""}${video.title} ${video.channel || ""}`}
     >
       <div className="feed-thumbnail">
+        {video.bilingualAvailable && (
+          <span className="bilingual-badge">EN + VI</span>
+        )}
         {video.thumbnail ? (
           <img src={video.thumbnail} alt="" loading="lazy" />
         ) : (
@@ -464,6 +468,12 @@ export function Platform() {
               onSave={refresh}
               lang={lang}
               onChannel={() => openChannel(video.channelId)}
+              onFindBilingual={() => {
+                setVideo(null);
+                setPage("home");
+                setTopic("EN + VI");
+                load("/youtube/bilingual");
+              }}
             />
             <Related video={video} queue={queue} open={openVideo} />
           </>
@@ -481,7 +491,9 @@ export function Platform() {
                         load(
                           c.query
                             ? `/youtube/search?q=${encodeURIComponent(c.query)}`
-                            : `/youtube/popular?category=${c.category}`,
+                            : c.category === "bilingual"
+                              ? "/youtube/bilingual"
+                              : `/youtube/popular?category=${c.category}`,
                         );
                       }}
                     >

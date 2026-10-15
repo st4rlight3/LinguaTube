@@ -5,6 +5,8 @@ const browser=await chromium.launch({args:['--autoplay-policy=no-user-gesture-re
 try{
  const page=await browser.newPage({viewport:{width:412,height:915}});
  await page.goto(origin);
+ await expect(page.locator('.feed-card').first()).toBeVisible({timeout:70000});
+ await page.screenshot({path:'docs/screenshots/redesign-home-live.png',fullPage:false});
  await page.getByRole('button',{name:'Search',exact:true}).click();
  await page.getByLabel('Search query').fill('English conversation');
  await page.getByRole('button',{name:'Submit search'}).click();
@@ -16,7 +18,10 @@ try{
  await first.click();
  const frame=page.locator('.player-frame');
  await expect(frame).toHaveAttribute('data-playback-state',/ready|cued|unstarted|playing/,{timeout:40000});
- await page.getByRole('button',{name:'Play / pause',exact:true}).click();
+ const official=page.frameLocator('iframe[src*="youtube.com/embed/"]');
+ const play=official.getByRole('button',{name:/^(Play|Play video|Phát video|Phát|Play \(k\))$/i}).first();
+ if(await play.isVisible()) await play.click();
+ else await page.getByRole('button',{name:'Play / pause',exact:true}).click();
  await expect(frame).toHaveAttribute('data-playback-state','playing',{timeout:40000});
  await expect.poll(async()=>Number(await frame.getAttribute('data-playback-seconds')),{timeout:30000}).toBeGreaterThan(3);
  await page.screenshot({path:'docs/screenshots/redesign-watch-live.png',fullPage:false});

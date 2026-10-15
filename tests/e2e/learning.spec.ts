@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 test.beforeEach(async ({page})=>{
+  await page.route('**/transcripts/*',r=>r.fulfill({json:{available:false,segments:[]}}));
   await page.route('**/youtube/popular*',r=>r.fulfill({json:{items:[]}}));
 });
 test('uploaded transcript seeks, highlights and saves dictionary vocabulary (mocked player)',async({page})=>{
@@ -104,7 +105,7 @@ test("official API results render and open learning screen (mocked provider)", a
     .getByRole("button", { name: "YouTube Test lesson Test creator" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Bring your own transcript" }),
+    page.getByRole("heading", { name: "No bilingual transcript for this video yet" }),
   ).toBeVisible();
   await expect(
     page.getByText("actual resolution is unverified."),

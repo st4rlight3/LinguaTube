@@ -3,6 +3,8 @@ import asyncio
 import hashlib
 import re
 import time
+import json
+from pathlib import Path
 from collections import OrderedDict
 from datetime import datetime, timezone, timedelta
 from functools import lru_cache
@@ -38,6 +40,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+transcript_catalog = json.loads(Path(__file__).with_name('transcript_catalog.json').read_text(encoding='utf-8'))
 engine = create_engine(settings.database_url, pool_pre_ping=True,
                        connect_args={'check_same_thread': False} if settings.database_url.startswith('sqlite') else {})
 
@@ -141,7 +144,28 @@ def health(session: Session = Depends(db)):
 @app.get('/config')
 def config():
     return {'youtube': bool(settings.youtube_api_key), 'accounts': bool(settings.supabase_url),
-            'translation': bool(settings.translation_url), 'transcriptSources': ['user-uploaded-srt-vtt']}
+            'translation': bool(settings.translation_url), 'transcriptSources': ['user-uploaded-srt-vtt', 'publisher-open-captions'],
+            'bilingualVideoCount': len(transcript_catalog)}
+
+
+@app.get('/transcripts/{video_id}')
+def published_transcript(video_id: str):
+    if not re.fullmatch(r'[\w-]{11}', video_id):
+        raise HTTPException(422, 'Invalid video ID.')
+    source = transcript_catalog.get(video_id)
+    if not source:
+        return {'available': False, 'segments': [], 'reason': 'No authorized companion transcript is available for this video.'}
+    return {**{k: v for k, v in source.items() if k != 'cues'}, 'available': True,
+            'segments': [{'id': str(i), 'start': cue[0], 'end': cue[1], 'en': cue[2], 'vi': cue[3]}
+                         for i, cue in enumerate(source['cues'])]}
+
+
+@app.get('/youtube/bilingual')
+@limiter.limit('20/minute')
+async def bilingual_videos(request: Request):
+    result = await youtube('videos', part='snippet,contentDetails,statistics,status', id=','.join(transcript_catalog))
+    return {**result, 'items': [{**i, 'bilingualAvailable': True} for i in result.get('items', [])
+                              if i.get('status', {}).get('embeddable') is not False]}
 
 
 async def external_json(url: str, *, params=None, body=None, headers=None):
@@ -224,7 +248,7 @@ async def enrich_videos(result):
         detail = lookup.get(vid)
         if not detail or detail.get('status', {}).get('embeddable') is False:
             continue
-        items.append({**item, 'statistics': detail.get('statistics', {}),
+        items.append({**item, 'bilingualAvailable': vid in transcript_catalog, 'statistics': detail.get('statistics', {}),
                       'contentDetails': {**item.get('contentDetails', {}), **detail.get('contentDetails', {})}})
     return {**result, 'items': items}
 
@@ -236,7 +260,7 @@ async def popular(request: Request, category: str = '0', page: str = ''):
         raise HTTPException(422, 'Unsupported category or page token.')
     result = await youtube('videos', part='snippet,contentDetails,statistics,status', chart='mostPopular',
                          regionCode='US', videoCategoryId=category, maxResults=20, pageToken=page)
-    return {**result, 'items': [i for i in result.get('items', []) if i.get('status', {}).get('embeddable') is not False]}
+    return {**result, 'items': [{**i, 'bilingualAvailable': i['id'] in transcript_catalog} for i in result.get('items', []) if i.get('status', {}).get('embeddable') is not False]}
 
 
 @app.get('/youtube/channels/{channel_id}')

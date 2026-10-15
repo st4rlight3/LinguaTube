@@ -2,17 +2,17 @@
 
 Android-first English–Vietnamese learning with official YouTube playback and authorized transcripts.
 
-**Status: testing build, not a production-complete service.** The local Android APK and frontend build have compiled. Live YouTube search, account sync and translation require service configuration. No fake production results or transcripts are included.
+**Status: 0.2.0 redesign in verification.** A video-first Android interface replaces the dashboard. Official YouTube discovery/search is live through https://linguatube-api-w751.onrender.com, and actual native Android WebView search/playback passed in an API 36 emulator. Bilingual subtitles remain the main release gate: automatic publisher-source loading, seeking, highlighting and Vietnamese pairing are implemented. The initial open-caption catalog is limited; a universal transcript source is not provided. Account sync and provider translation are not configured.
 
-Try the [public web companion](https://st4rlight3.github.io/LinguaTube/) or get an Android testing APK from [Releases](https://github.com/st4rlight3/LinguaTube/releases). The web companion supports guest/local learning; online discovery, accounts and translation are not configured. Testing APKs are debug-signed, not store-ready, and CI debug signing keys can differ between builds (an update may require uninstalling, which erases local data).
+Try the [public web companion](https://st4rlight3.github.io/LinguaTube/) or get an Android testing APK from [Releases](https://github.com/st4rlight3/LinguaTube/releases). Select the **EN + VI** topic for videos with an authorized bilingual companion. Imported transcripts remain supported. Testing APKs are debug-signed, not store-ready, and CI debug signing keys can differ between builds (an update may require uninstalling, which erases local data).
 
 ## Included
 
-- React 19, TypeScript, Vite, Tailwind; responsive mobile navigation, dark appearance and English/Vietnamese core navigation.
+- Video feed, full-width search results, channel pages, playlists and Home/Shorts/Subscriptions/You/Search navigation; original LinguaTube branding and dark/light appearance.
 - Capacitor Android project targeting SDK 36, minimum Android 7, custom app icon and splash.
 - Official YouTube search for videos/channels/playlists with paging, duration filter, popular education discovery, local search history, channel upload browsing and playlist navigation.
 - Official iframe playback, native fullscreen landscape and Android Back handling, playback speed, seek and repeat. YouTube controls, ads and branding remain intact. Resolution is never forced or claimed.
-- Permission-confirmed SRT/VTT imports, bilingual timed text, sentence seeking, repeat range, bookmarks, font size and transcript search.
+- Automatic authorized publisher captions with credited Vietnamese translations, EN+VI discovery badges, permission-confirmed SRT/VTT pairing, sentence seeking, highlighting, repeat, bookmarks, font size and follow-current-sentence scrolling. See [source provenance](backend/TRANSCRIPT_SOURCES.md).
 - Configurable LibreTranslate-compatible translation with an atomic daily character allowance. API secrets stay on the backend.
 - Dictionary lookup with available IPA/parts of speech/examples, optional Vietnamese definition translation, vocabulary collection and spaced review.
 - Guest persistence on device; Supabase sign-in/registration/reset, isolated cloud records, favorites, watch history, profile and account deletion routes.
