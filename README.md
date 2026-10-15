@@ -59,3 +59,5 @@ Set frontend `VITE_API_URL`, `VITE_SUPABASE_URL`, and the browser-safe `VITE_SUP
 Backend settings are documented in `backend/.env.example`. Production uses PostgreSQL, Supabase asymmetric signing keys (ES256/RS256), an HTTPS frontend, and an explicit CORS allowlist including `https://com.st4rlight3.linguatube` for Android. Account deletion requires the server-only Supabase service role. The app does not scrape YouTube captions or extract streams.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md), [SECURITY.md](SECURITY.md), [TEST_REPORT.md](TEST_REPORT.md), and [TASKS.md](TASKS.md) for verified status and outstanding work.
+
+Vietnamese quick start: [HUONG_DAN.md](HUONG_DAN.md).

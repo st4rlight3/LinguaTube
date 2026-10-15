@@ -11,7 +11,7 @@
 - [x] Repository created under st4rlight3; source pushed and remote SHA verified
 - [x] Repository made public after source and author-metadata checks
 - [x] Verify corrected GitHub Actions Android build
-- [ ] Verify tag-release automation
+- [x] Verify tag-release automation
 - [x] Verify public HTTPS web companion deployment
 - [ ] Provision backend/database/auth and configure YouTube/translation credentials securely
 - [ ] Live YouTube search, player, account and translation integration verification
@@ -19,4 +19,4 @@
 - [ ] Finish full interface localization (navigation/home are bilingual; some learning/settings text remains English)
 - [ ] Optional licensed CEFR data, creator-caption authorization and authorized speech-to-text provider
 
-Next checkpoint: publish and verify v0.1.0-alpha.1 APK. Corrected remote tests and Android build passed; public HTTPS frontend rendered successfully without page errors or mobile overflow. Do not mark the product production-complete while the live-service and physical-device gates remain open.
+v0.1.0-alpha.1 is published with its APK: tagged Actions test, Android and release jobs all passed. Public HTTPS frontend and guest save/review/export flows passed. Next: complete localization, provision live services with securely supplied credentials, then test physical Android. Do not mark the product production-complete while these gates remain open.

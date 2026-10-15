@@ -2,8 +2,9 @@
 
 ## Current status
 
-Source repository: https://github.com/st4rlight3/LinguaTube (initially private).
-No production backend, database, authentication tenant, translation provider or public frontend has been configured yet. A local APK build is not proof of live integration or device playback.
+Source repository: https://github.com/st4rlight3/LinguaTube (public).
+Public frontend: https://st4rlight3.github.io/LinguaTube/ (deployment and browser rendering verified).
+No production backend, database, authentication tenant or translation provider has been configured yet. A local APK build is not proof of live integration or device playback.
 
 ## Backend
 
@@ -27,7 +28,7 @@ Native origin: `https://com.st4rlight3.linguatube`. It matches the package ident
 
 Testing artifacts use Android debug signing. They are not Play Store releases. Release build configuration reads `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD` from the process environment. Keep the keystore outside Git and back it up securely; keep passwords in Actions Secrets. For Play distribution, use Play App Signing and a dedicated upload key. Never use the debug signing identity as a production release identity.
 
-Tagging `v*` runs tests, compiles the APK, uploads it, then creates a GitHub prerelease with the debug APK. A missing configuration still produces an honest testing build, not a fully provisioned service. Verify Actions completion and the release attachment before announcing availability. Different CI debug keys can require uninstalling an earlier testing build, which clears local guest data; export guest data first.
+Tagging `v*` runs tests, compiles the APK, uploads it, then creates a GitHub prerelease with the debug APK. A missing configuration still produces an honest testing build, not a fully provisioned service. Verify Actions completion and the release attachment before announcing availability. Different CI debug keys can require uninstalling an earlier testing build, which clears local guest data. Profile offers Export guest data (JSON); verify that a usable file is saved before uninstalling. Native WebView download behavior still requires device testing, and an import/restore interface is not included.
 
 ## Costs
 
