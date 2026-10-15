@@ -116,7 +116,7 @@ class RequestSizeLimit:
         await self.app(scope, replay, send)
 
 
-app = FastAPI(title='LinguaTube', version='0.1.0')
+app = FastAPI(title='LinguaTube', version='0.2.0')
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
@@ -135,7 +135,7 @@ async def secure_headers(request: Request, call_next):
 @app.get('/health')
 def health(session: Session = Depends(db)):
     session.execute(text('SELECT 1'))
-    return {'status': 'ok', 'version': '0.1.0'}
+    return {'status': 'ok', 'version': '0.2.0'}
 
 
 @app.get('/config')
@@ -205,16 +205,38 @@ async def search(request: Request, q: str = '', kind: Literal['video', 'channel'
         params['pageToken'] = page
     if kind == 'video':
         params.update(videoEmbeddable='true', videoDuration=duration)
-    return await youtube('search', **params)
+    result = await youtube('search', **params)
+    return await enrich_videos(result) if kind == 'video' else result
+
+
+async def enrich_videos(result):
+    """Batch authoritative duration/statistics; never synthesize engagement metadata."""
+    ids = [i.get('id', {}).get('videoId') if isinstance(i.get('id'), dict)
+           else i.get('contentDetails', {}).get('videoId') for i in result.get('items', [])]
+    ids = [i for i in ids if i and re.fullmatch(r'[\w-]{11}', i)]
+    if not ids:
+        return result
+    details = await youtube('videos', part='contentDetails,statistics,status', id=','.join(ids))
+    lookup = {i['id']: i for i in details.get('items', [])}
+    items = []
+    for item in result.get('items', []):
+        vid = item.get('id', {}).get('videoId') if isinstance(item.get('id'), dict) else item.get('contentDetails', {}).get('videoId')
+        detail = lookup.get(vid)
+        if not detail or detail.get('status', {}).get('embeddable') is False:
+            continue
+        items.append({**item, 'statistics': detail.get('statistics', {}),
+                      'contentDetails': {**item.get('contentDetails', {}), **detail.get('contentDetails', {})}})
+    return {**result, 'items': items}
 
 
 @app.get('/youtube/popular')
 @limiter.limit('10/minute')
-async def popular(request: Request, category: str = '27', page: str = ''):
+async def popular(request: Request, category: str = '0', page: str = ''):
     if category not in {'0', '10', '22', '27', '28'} or len(page) > 256:
         raise HTTPException(422, 'Unsupported category or page token.')
-    return await youtube('videos', part='snippet,contentDetails,statistics', chart='mostPopular',
-                         regionCode='US', videoCategoryId=category, maxResults=12, pageToken=page)
+    result = await youtube('videos', part='snippet,contentDetails,statistics,status', chart='mostPopular',
+                         regionCode='US', videoCategoryId=category, maxResults=20, pageToken=page)
+    return {**result, 'items': [i for i in result.get('items', []) if i.get('status', {}).get('embeddable') is not False]}
 
 
 @app.get('/youtube/channels/{channel_id}')
@@ -230,7 +252,16 @@ async def channel(request: Request, channel_id: str):
 async def playlist(request: Request, playlist_id: str, page: str = ''):
     if not re.fullmatch(r'[\w-]{10,100}', playlist_id) or len(page) > 256:
         raise HTTPException(422, 'Invalid playlist ID.')
-    return await youtube('playlistItems', part='snippet,contentDetails', playlistId=playlist_id, maxResults=20, pageToken=page)
+    return await enrich_videos(await youtube('playlistItems', part='snippet,contentDetails', playlistId=playlist_id, maxResults=20, pageToken=page))
+
+
+@app.get('/youtube/channels/{channel_id}/playlists')
+@limiter.limit('20/minute')
+async def channel_playlists(request: Request, channel_id: str, page: str = ''):
+    if not re.fullmatch(r'UC[\w-]{22}', channel_id) or len(page) > 256:
+        raise HTTPException(422, 'Invalid channel or page token.')
+    result = await youtube('playlists', part='snippet,contentDetails', channelId=channel_id, maxResults=20, pageToken=page)
+    return {**result, 'items': [{**i, 'id': {'playlistId': i['id']}} for i in result.get('items', [])]}
 
 
 @app.get('/dictionary/{word}')
@@ -270,7 +301,8 @@ def list_records(kind: Kind, owner: str = Depends(user), session: Session = Depe
             if not isinstance(cached_at, (float, int)):
                 cached_at = fallback
             if time.time() * 1000 - cached_at > 30 * 86400000:
-                video = {**video, 'title': 'Saved YouTube video', 'channel': '', 'channelId': '', 'thumbnail': ''}
+                video = {**video, 'title': 'Saved YouTube video', 'channel': '', 'channelId': '', 'thumbnail': '',
+                         'views': None, 'publishedAt': None, 'duration': None, 'description': None}
                 record.payload = {**payload, 'video': video} if kind == 'bookmark' else video
     session.commit()
     return [{'key': r.key, 'payload': r.payload, 'updatedAt': r.updated_at} for r in records]

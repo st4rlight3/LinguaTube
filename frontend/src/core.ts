@@ -19,6 +19,10 @@ export type Video = {
   channelId: string;
   thumbnail: string;
   cachedAt?: number;
+  views?: string;
+  publishedAt?: string;
+  duration?: string;
+  description?: string;
 };
 export type Word = {
   word: string;
@@ -114,6 +118,10 @@ export function readLocal(kind: Kind): Saved[] {
           channel: "",
           channelId: "",
           thumbnail: "",
+          views: undefined,
+          publishedAt: undefined,
+          duration: undefined,
+          description: undefined,
         });
         changed = true;
       }
@@ -188,13 +196,19 @@ export function asVideo(item: any): Video {
       item.contentDetails?.videoId ||
       item.snippet?.resourceId?.videoId ||
       item.id,
-    title: item.snippet.title,
+    title: item.snippet?.title || 'Unavailable video',
     channel: item.snippet.videoOwnerChannelTitle || item.snippet.channelTitle,
     channelId: item.snippet.videoOwnerChannelId || item.snippet.channelId,
     thumbnail:
+      item.snippet.thumbnails?.maxres?.url ||
+      item.snippet.thumbnails?.high?.url ||
       item.snippet.thumbnails?.medium?.url ||
       item.snippet.thumbnails?.default?.url ||
       "",
+    views: item.statistics?.viewCount,
+    publishedAt: item.snippet.publishedAt,
+    duration: item.contentDetails?.duration,
+    description: item.snippet.description,
   };
 }
 

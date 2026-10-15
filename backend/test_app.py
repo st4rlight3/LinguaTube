@@ -74,6 +74,35 @@ def test_real_search_contract_with_mock_provider(client,monkeypatch):
     assert calls[0][1]['params']['pageToken'] == 'abc'
     assert 'test-not-a-real-key' not in result.text
 
+
+def test_video_search_enriches_only_authoritative_embeddable_results(client, monkeypatch):
+    monkeypatch.setattr(module.settings, 'youtube_api_key', 'test-not-a-real-key')
+    async def provider(url, **kwargs):
+        if url.endswith('/search'):
+            return {'items': [{'id': {'videoId': 'abcdefghijk'}, 'snippet': {'title': 'Provider title'}},
+                              {'id': {'videoId': 'lmnopqrstuv'}, 'snippet': {'title': 'Blocked'}}], 'nextPageToken': 'next'}
+        assert kwargs['params']['id'] == 'abcdefghijk,lmnopqrstuv'
+        return {'items': [{'id': 'abcdefghijk', 'statistics': {'viewCount': '123'}, 'contentDetails': {'duration': 'PT5M'}, 'status': {'embeddable': True}},
+                          {'id': 'lmnopqrstuv', 'status': {'embeddable': False}}]}
+    monkeypatch.setattr(module, 'external_json', provider)
+    result = client.get('/youtube/search?q=English').json()
+    assert result['nextPageToken'] == 'next'
+    assert len(result['items']) == 1
+    assert result['items'][0]['statistics']['viewCount'] == '123'
+    assert result['items'][0]['contentDetails']['duration'] == 'PT5M'
+
+
+def test_channel_playlist_contract(client, monkeypatch):
+    monkeypatch.setattr(module.settings, 'youtube_api_key', 'test-not-a-real-key')
+    async def provider(url, **kwargs):
+        assert url.endswith('/playlists')
+        assert kwargs['params']['channelId'] == 'UCabcdefghijklmnopqrstuv'
+        return {'items': [{'id': 'PLabcdefghijklmnopqrstuv', 'snippet': {'title': 'Playlist'}}]}
+    monkeypatch.setattr(module, 'external_json', provider)
+    result = client.get('/youtube/channels/UCabcdefghijklmnopqrstuv/playlists').json()
+    assert result['items'][0]['id']['playlistId'] == 'PLabcdefghijklmnopqrstuv'
+    assert client.get('/youtube/channels/invalid/playlists').status_code == 422
+
 def test_translation_budget_and_batch_contract(client,monkeypatch):
     identity('alice')
     monkeypatch.setattr(module.settings,'translation_url','https://translate.example.test')
