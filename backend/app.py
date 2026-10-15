@@ -145,7 +145,9 @@ def health(session: Session = Depends(db)):
 def config():
     return {'youtube': bool(settings.youtube_api_key), 'accounts': bool(settings.supabase_url),
             'translation': bool(settings.translation_url), 'transcriptSources': ['user-uploaded-srt-vtt', 'publisher-open-captions'],
-            'bilingualVideoCount': len(transcript_catalog)}
+            'bilingualVideoCount': len(transcript_catalog),
+            'transcriptCoverage': {'universal': False, 'automaticSource': 'publisher-catalog-only',
+                                   'youtubeCaptionDownload': 'requires-video-editor-authorization'}}
 
 
 @app.get('/transcripts/{video_id}')
@@ -154,8 +156,10 @@ def published_transcript(video_id: str):
         raise HTTPException(422, 'Invalid video ID.')
     source = transcript_catalog.get(video_id)
     if not source:
-        return {'available': False, 'segments': [], 'reason': 'No authorized companion transcript is available for this video.'}
-    return {**{k: v for k, v in source.items() if k != 'cues'}, 'available': True,
+        return {'available': False, 'status': 'source_not_authorized', 'segments': [],
+                'reason': 'LinguaTube has no authorized transcript source for this video. This does not mean the video has no YouTube captions.',
+                'helpUrl': 'https://developers.google.com/youtube/v3/docs/captions/download'}
+    return {**{k: v for k, v in source.items() if k != 'cues'}, 'available': True, 'status': 'available',
             'segments': [{'id': str(i), 'start': cue[0], 'end': cue[1], 'en': cue[2], 'vi': cue[3]}
                          for i, cue in enumerate(source['cues'])]}
 

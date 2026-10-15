@@ -205,6 +205,8 @@ export function Player({
     translationCredit?: string;
   } | null>(null);
   const [sourceStatus, setSourceStatus] = useState("checking");
+  const [sourceError, setSourceError] = useState("");
+  const [sourceAttempt, setSourceAttempt] = useState(0);
   const sourceRequest = useRef(0);
   const transcriptScroll = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -237,6 +239,8 @@ export function Player({
   useEffect(() => {
     let cancelled = false;
     const sourceRevision = ++sourceRequest.current;
+    setSourceStatus("checking");
+    setSourceError("");
     records("transcript")
       .then(async (rows) => {
         const local = rows.find((r) => r.key === video.id)?.payload;
@@ -254,12 +258,20 @@ export function Player({
           setSegments(published.segments);
           setSourceInfo(published);
           setSourceStatus("available");
-        } else setSourceStatus("missing");
+        } else setSourceStatus("unavailable");
       })
       .catch((e) => {
-        if (!cancelled && sourceRevision === sourceRequest.current)
-          setSourceStatus("Could not check subtitle source: " + e.message);
+        if (!cancelled && sourceRevision === sourceRequest.current) {
+          setSourceStatus("error");
+          setSourceError(e.message);
+        }
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [video.id, sourceAttempt]);
+  useEffect(() => {
+    let cancelled = false;
     records("favorite")
       .then((rows) => {
         if (!cancelled) setFavorite(rows.some((r) => r.key === video.id));
@@ -538,7 +550,7 @@ export function Player({
     }
   }
   return (
-    <div className="player-page">
+    <div className="player-page" data-subtitle-state={sourceStatus}>
       <button className="text-button" onClick={close}>
         <ArrowLeft size={17} />
         Back to discovery
@@ -554,6 +566,21 @@ export function Player({
             <div ref={holder} className="youtube-player" />
           </div>
           {error && <Notice message={error} />}
+          {segments.length === 0 && (
+            <div className="subtitle-ready" role="status">
+              {sourceStatus === "checking"
+                ? lang === "vi"
+                  ? "Đang kiểm tra nguồn phụ đề…"
+                  : "Checking authorized subtitle sources…"
+                : sourceStatus === "error"
+                  ? lang === "vi"
+                    ? "Chưa kiểm tra được nguồn phụ đề. Xem chi tiết và thử lại bên dưới."
+                    : "Subtitle source check failed. See details and retry below."
+                  : lang === "vi"
+                    ? "Chưa có nguồn phụ đề được cấp quyền cho video này. CC của YouTube là tính năng riêng."
+                    : "No authorized companion source for this video. YouTube CC is separate."}
+            </div>
+          )}
           {segments.length > 0 && active < 0 && (
             <div className="subtitle-ready">
               {lang === "vi"
@@ -579,7 +606,7 @@ export function Player({
           <div className="video-info">
             <h1>{video.title}</h1>
             <p>
-              {video.views !== undefined &&
+              {video.views != null &&
                 `${Number(video.views).toLocaleString()} views · `}
               {video.publishedAt &&
                 new Date(video.publishedAt).toLocaleDateString()}
@@ -883,14 +910,36 @@ export function Player({
                     title={
                       sourceStatus === "checking"
                         ? "Checking subtitle source…"
-                        : "No bilingual transcript for this video yet"
+                        : sourceStatus === "error"
+                          ? lang === "vi"
+                            ? "Chưa kiểm tra được nguồn phụ đề"
+                            : "Could not check subtitle source"
+                          : lang === "vi"
+                            ? "Chưa có nguồn phụ đề được cấp quyền"
+                            : "No authorized subtitle source connected"
                     }
                     text={
-                      sourceStatus.startsWith("Could not")
-                        ? sourceStatus
-                        : "YouTube captions and the bilingual companion are separate. Choose an EN + VI video, or import transcripts you are allowed to use."
+                      sourceStatus === "error"
+                        ? sourceError
+                        : sourceStatus === "checking"
+                          ? lang === "vi"
+                            ? "Đang tìm bản chép lời được phép sử dụng cho video này."
+                            : "Looking for a transcript LinguaTube is allowed to use for this video."
+                          : lang === "vi"
+                            ? "Điều này không có nghĩa video không có phụ đề. API YouTube chỉ cho tải phụ đề khi có quyền chỉnh sửa video. LinguaTube chưa có nguồn được cấp phép cho mọi video; bạn có thể nhập SRT/VTT mà bạn được phép dùng. CC trong trình phát YouTube là tính năng riêng, không phải phụ đề song ngữ của LinguaTube."
+                            : "This does not mean the video has no captions. YouTube caption downloads require permission to edit the video. LinguaTube has no licensed source covering every video; you can import an SRT/VTT you are allowed to use. The player's YouTube CC is separate, not LinguaTube bilingual subtitles."
                     }
                   />
+                  {sourceStatus !== "checking" && (
+                    <button
+                      className="secondary"
+                      onClick={() => setSourceAttempt((n) => n + 1)}
+                    >
+                      {lang === "vi"
+                        ? "Kiểm tra lại nguồn phụ đề"
+                        : "Retry subtitle source"}
+                    </button>
+                  )}
                   {sourceStatus !== "checking" && onFindBilingual && (
                     <button
                       className="primary find-bilingual"

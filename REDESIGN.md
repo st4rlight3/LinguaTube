@@ -1,5 +1,7 @@
 # Video platform redesign — 0.2.0 work in progress
 
+Current release blocker: automatic bilingual coverage still consists of one publisher sample. The user explicitly requires broad per-video support; do not substitute an expanding hand-picked catalog or call the redesign complete. See [source/coverage constraints](backend/TRANSCRIPT_SOURCES.md) and the current [test checkpoint](TEST_REPORT.md).
+
 The root experience is now video discovery, with Home, Shorts, Subscriptions, You and Search navigation. Home loads official public discovery rather than an education dashboard. No catalog fixtures are bundled with the application.
 
 Search supports video/channel/playlist results, recent-query suggestions (not a YouTube autocomplete endpoint), duration and ordering. Video search batches videos.list for authoritative duration and view count, and filters items explicitly marked not embeddable. Channel pages show official metadata, upload playlists and public playlists. LinguaTube follows are device-local channel IDs, not YouTube account subscriptions.
@@ -9,10 +11,9 @@ The watch screen keeps the official iframe controls and native Android fullscree
 ## Verification and release gate
 
 - Production frontend build passed.
-- 24 browser cases passed across desktop/Android-size/iPhone-size Chromium; providers and iframe are mocked only in tests.
-- 15 backend tests passed, including metadata enrichment, embedding restrictions and public channel playlists.
-- Existing 8 unit tests passed before the latest presentation adjustments.
-- Android version code is 2, version name 0.2.0; new APK build and real-service verification are still required.
+- 30 browser cases passed across desktop/Android-size/iPhone-size Chromium; providers and iframe are mocked only in tests.
+- 17 backend tests and 9 unit tests passed.
+- Android version code is 2, version name 0.2.0; APK builds and actual emulator search/playback/bilingual sample passed. Universal captions, physical-device and observed resolution checks have not passed. Fullscreen exit awaits a clean retest.
 - Google Cloud project `linguatube-st4rlight3` was created through the official CLI after explicit user authorization. YouTube Data API is enabled; server key is restricted to that API and the Render Singapore egress ranges. No billing was enabled.
 - HTTPS backend https://linguatube-api-w751.onrender.com is live. Health and actual official YouTube search passed: 12 English-conversation videos, authoritative view counts/durations. Frontend/Android builds use the repository VITE_API_URL variable.
 - Render is a free single instance and can sleep. Initial discovery deployment uses ephemeral SQLite for request budgets only; Supabase accounts/translation remain off, and guest learning remains on device. Persistent cloud records are not ready.

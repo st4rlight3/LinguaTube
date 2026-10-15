@@ -2,9 +2,15 @@
 
 ## 0.2.0 redesign checkpoint (latest)
 
-Production build, 9 frontend unit tests, 17 backend tests and 27 browser cases passed (24 full-suite cases plus 3 new automatic-publisher-caption cases across the same viewports). Real HTTPS search returned official YouTube results with statistics/duration. The APK installed on an Android 16 / API 36 x86_64 emulator; actual search and official WebView playback advanced beyond 3 seconds. This is native-emulator evidence, not physical-device or resolution verification. A signed-in browser also displayed actual video frames and advancing playback.
+Production build, 9 frontend unit tests, 17 backend tests and 30 browser cases passed across desktop/Android-size/iPhone-size Chromium. Tests distinguish missing source permission from provider errors, verify retry and assert that the player does not cover the English subtitle line. Real HTTPS search returned official YouTube results with statistics/duration. The APK installed on an Android 16 / API 36 x86_64 emulator; actual search and official WebView playback advanced beyond 3 seconds. Automatic publisher captions loaded 32 cues without file import; seeking to 33.25s advanced real playback and displayed the matching English/Vietnamese sentence. Vietnamese-only mode and 22px text passed. This is native-emulator evidence, not physical-device or resolution verification.
 
-The automated anonymous desktop headless playback probe did not pass (buffering/unstarted); it is not represented as success. Native emulator playback and signed-in browser verification are separate observations. Initial publisher captions are being deployed and tested with real playback before a new prerelease is announced.
+Native upgrade migration verified: old PWA controller/registration/precache were removed, new APK UI loaded, and the existing guest history count remained 1. No app data reset was performed. Android bundles no longer register a PWA worker.
+
+Fullscreen entered landscape, but the initial Back test was too weak and is withdrawn: Android System UI became unresponsive at its first-use immersive prompt. The test now requires DOM fullscreen exit and portrait restoration. Fullscreen/Back is pending a clean retest, not a reported pass.
+
+**Product coverage remains unfulfilled:** one publisher sample only. General captions require a broader authorized source. No new prerelease is published as a completed bilingual product.
+
+The automated anonymous desktop headless playback probe did not pass (buffering/unstarted); it is not represented as success. Native emulator playback and signed-in browser verification are separate observations.
 
 Older 0.1.0 results below are historical and do not supersede this checkpoint.
 
@@ -28,7 +34,7 @@ External YouTube and translation calls in automated tests use deterministic mock
 
 Tagged release execution passed: [38686459277](https://github.com/st4rlight3/LinguaTube/actions/runs/38686459277), all test/Android/release jobs succeeded; [v0.1.0-alpha.1](https://github.com/st4rlight3/LinguaTube/releases/tag/v0.1.0-alpha.1) is published with an APK. The downloaded release APK verified with v2 signing, package com.st4rlight3.linguatube, version 0.1.0, min SDK 24 and target 36. Its SHA-256 matches GitHub's asset digest: `115bed7bfe0c29fcd60cf2de94bef675ad626d25689f75c5227ef94ba4018c1d`.
 
-## Pending verification
+## Historical 0.1.0 pending list (see current checkpoint above)
 
 - Live PostgreSQL migrations, Supabase login/reset/delete, and cross-device sync.
 - Live YouTube Data API search, channel and playlist browsing with a configured key.

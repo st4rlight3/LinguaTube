@@ -78,7 +78,12 @@ jobs:
         with:
           name: LinguaTube-debug-apk
           path: artifacts
-      - run: gh release create "$TAG" artifacts/app-debug.apk --repo "$REPO" --notes-file RELEASE_NOTES.md --prerelease --title "LinguaTube $TAG · Android testing build"
+      - name: Hold prerelease while product coverage is incomplete
+        run: '! grep -q "DRAFT — release held" RELEASE_0.2.md'
+      - run: curl --fail --retry 3 --retry-delay 10 --max-time 90 "$API_URL/config" | python3 -c 'import json,sys; assert json.load(sys.stdin)["youtube"], "Live YouTube service must be configured before release"'
+        env:
+          API_URL: ${{ vars.VITE_API_URL }}
+      - run: gh release create "$TAG" artifacts/app-debug.apk --repo "$REPO" --notes-file RELEASE_0.2.md --prerelease --title "LinguaTube $TAG · Android bilingual video testing build"
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}

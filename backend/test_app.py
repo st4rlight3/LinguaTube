@@ -43,7 +43,11 @@ def test_publisher_bilingual_transcript_and_missing_source(client):
     assert len(result['segments']) == 32
     assert all(s['en'] and s['vi'] and s['end'] > s['start'] for s in result['segments'])
     assert result['segments'][4]['start'] == 33.25
-    assert client.get('/transcripts/abcdefghijk').json()['available'] is False
+    missing = client.get('/transcripts/abcdefghijk').json()
+    assert missing['available'] is False
+    assert missing['status'] == 'source_not_authorized'
+    assert 'does not mean' in missing['reason']
+    assert client.get('/config').json()['transcriptCoverage']['universal'] is False
     assert client.get('/transcripts/invalid').status_code == 422
 
 

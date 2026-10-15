@@ -92,7 +92,7 @@ export function videoDuration(value?: string) {
 }
 function metadata(v: Video) {
   return [
-    v.views !== undefined ? `${Number(v.views).toLocaleString()} views` : null,
+    v.views != null ? `${Number(v.views).toLocaleString()} views` : null,
     v.publishedAt ? new Date(v.publishedAt).toLocaleDateString() : null,
   ]
     .filter(Boolean)
@@ -510,6 +510,14 @@ export function Platform() {
                     )}
                   </span>
                 </div>
+                {topic === "EN + VI" && (
+                  <p className="section-note">
+                    {tr(
+                      "Limited publisher sample collection — not bilingual coverage of every YouTube video.",
+                      "Bộ video mẫu có nguồn phụ đề được phép dùng — chưa hỗ trợ song ngữ cho mọi video YouTube.",
+                    )}
+                  </p>
+                )}
                 {renderFeed()}
               </>
             )}

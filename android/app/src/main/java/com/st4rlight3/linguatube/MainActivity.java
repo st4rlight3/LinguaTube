@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
+import android.webkit.WebView;
 import android.widget.FrameLayout;
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.view.WindowCompat;
@@ -12,6 +13,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
+import com.getcapacitor.BridgeWebViewClient;
 
 /** Keep YouTube's own video surface and controls intact in native fullscreen. */
 public class MainActivity extends BridgeActivity {
@@ -19,10 +21,29 @@ public class MainActivity extends BridgeActivity {
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private int previousOrientation;
     private OnBackPressedCallback fullscreenBack;
+    private boolean checkedLegacyShell;
 
     @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
+        bridge.setWebViewClient(new BridgeWebViewClient(bridge) {
+            @Override public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                if (checkedLegacyShell || !url.startsWith(bridge.getLocalUrl())) return;
+                checkedLegacyShell = true;
+                // Migrate older APKs which accidentally installed the web PWA worker.
+                // Remove only shell caches; keep guest history, vocabulary and transcripts.
+                view.evaluateJavascript("(async()=>{"
+                    + "if(!('serviceWorker' in navigator))return;"
+                    + "const regs=await navigator.serviceWorker.getRegistrations();"
+                    + "if(!regs.length)return;"
+                    + "await Promise.all(regs.map(r=>r.unregister()));"
+                    + "const keys=await caches.keys();"
+                    + "await Promise.all(keys.filter(k=>k.startsWith('workbox-precache-')).map(k=>caches.delete(k)));"
+                    + "location.reload();"
+                    + "})().catch(e=>console.error('Native shell migration failed',e));", null);
+            }
+        });
         fullscreenBack = new OnBackPressedCallback(false) {
             @Override public void handleOnBackPressed() { exitFullscreen(); }
         };

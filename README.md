@@ -2,7 +2,7 @@
 
 Android-first English–Vietnamese learning with official YouTube playback and authorized transcripts.
 
-**Status: 0.2.0 redesign in verification.** A video-first Android interface replaces the dashboard. Official YouTube discovery/search is live through https://linguatube-api-w751.onrender.com, and actual native Android WebView search/playback passed in an API 36 emulator. Bilingual subtitles remain the main release gate: automatic publisher-source loading, seeking, highlighting and Vietnamese pairing are implemented. The initial open-caption catalog is limited; a universal transcript source is not provided. Account sync and provider translation are not configured.
+**Status: unfinished — broad bilingual coverage is blocked.** A video-first Android interface replaces the dashboard. Official YouTube discovery/search is live through https://linguatube-api-w751.onrender.com. Native Android WebView search/playback and automatic synchronized EN–VI captions passed on an API 36 emulator. However, automatic captions currently cover only **one publisher sample**, not arbitrary YouTube videos. This does not meet the requested product coverage; adding sample videos is not a substitute. A broader authorized source is still needed. Account sync and provider translation are not configured.
 
 Try the [public web companion](https://st4rlight3.github.io/LinguaTube/) or get an Android testing APK from [Releases](https://github.com/st4rlight3/LinguaTube/releases). Select the **EN + VI** topic for videos with an authorized bilingual companion. Imported transcripts remain supported. Testing APKs are debug-signed, not store-ready, and CI debug signing keys can differ between builds (an update may require uninstalling, which erases local data).
 
@@ -51,6 +51,8 @@ cd android
 ```
 
 On Windows use `gradlew.bat`. Set `ANDROID_HOME` to the SDK and `JAVA_HOME` to the JDK. The generated APK is `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+`android:sync` uses Vite's `android` mode without PWA registration. Native startup migrates the older shell's service worker/cache without deleting local learning records. Web builds retain PWA auto-updates.
 
 ## Live services
 

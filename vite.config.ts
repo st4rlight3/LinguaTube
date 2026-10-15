@@ -2,17 +2,20 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: process.env.VITE_BASE_PATH || "/",
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "prompt",
+      // Native assets are updated by the APK, not a second web-app cache.
+      disable: mode === "android",
+      registerType: "autoUpdate",
       manifest: {
         name: "LinguaTube",
         short_name: "LinguaTube",
-        description: "Discover videos. Watch with synchronized English and Vietnamese transcripts.",
+        description:
+          "Discover videos. Watch with synchronized English and Vietnamese transcripts.",
         theme_color: "#101114",
         background_color: "#101114",
         display: "standalone",
@@ -46,4 +49,4 @@ export default defineConfig({
   ],
   server: { port: 5173 },
   build: { outDir: "dist" },
-});
+}));

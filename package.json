@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "android:sync": "npm run build && cap sync android",
+    "android:sync": "tsc -b && vite build --mode android && cap sync android",
     "android:debug": "npm run android:sync && cd android && gradlew assembleDebug"
   },
   "dependencies": {

@@ -15,7 +15,12 @@ const item = {
   contentDetails: { duration: "PT12M34S" },
 };
 test.beforeEach(async ({ page }) => {
-  await page.route('**/transcripts/*',r=>r.fulfill({json:{available:false,segments:[]}}));
+  await page.route("**/youtube/bilingual*", (r) =>
+    r.fulfill({ json: { items: [] } }),
+  );
+  await page.route("**/transcripts/*", (r) =>
+    r.fulfill({ json: { available: false, segments: [] } }),
+  );
   await page.route("**/youtube/popular*", (r) =>
     r.fulfill({ json: { items: [item], nextPageToken: "two" } }),
   );
@@ -54,13 +59,105 @@ test("video feed, pagination and unsupported features are explicit", async ({
   await expect(page.getByText(/Google OAuth/)).toBeVisible();
 });
 
-test('publisher subtitles load automatically without a file import',async({page})=>{
- await page.route('**/transcripts/abcdefghijk',r=>r.fulfill({json:{available:true,source:'Licensed publisher test fixture',segments:[{id:'0',start:0,end:5,en:'This is an authorized caption.',vi:'Đây là phụ đề được phép sử dụng.'}]}}));
- await page.route('**/iframe_api',r=>r.fulfill({contentType:'application/javascript',body:`window.YT={Player:function(m,o){this.destroy=()=>{};this.getCurrentTime=()=>1;this.getPlayerState=()=>1;this.getAvailablePlaybackRates=()=>[1];this.pauseVideo=()=>{};setTimeout(()=>o.events.onReady({target:this}),0)}};window.onYouTubeIframeAPIReady();`}));
- await page.goto('/');await page.getByRole('button',{name:'YouTube Fixture video Fixture channel'}).click();
- await expect(page.getByLabel('Synchronized bilingual subtitles')).toContainText('This is an authorized caption.');
- await expect(page.getByLabel('Synchronized bilingual subtitles')).toContainText('Đây là phụ đề được phép sử dụng.');
- await expect(page.getByText('Licensed publisher test fixture')).toBeVisible();
+test("publisher subtitles load automatically without a file import", async ({
+  page,
+}) => {
+  await page.route("**/transcripts/abcdefghijk", (r) =>
+    r.fulfill({
+      json: {
+        available: true,
+        source: "Licensed publisher test fixture",
+        segments: [
+          {
+            id: "0",
+            start: 0,
+            end: 5,
+            en: "This is an authorized caption.",
+            vi: "Đây là phụ đề được phép sử dụng.",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/iframe_api", (r) =>
+    r.fulfill({
+      contentType: "application/javascript",
+      body: `window.YT={Player:function(m,o){this.destroy=()=>{};this.getCurrentTime=()=>1;this.getPlayerState=()=>1;this.getAvailablePlaybackRates=()=>[1];this.pauseVideo=()=>{};setTimeout(()=>o.events.onReady({target:this}),0)}};window.onYouTubeIframeAPIReady();`,
+    }),
+  );
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "YouTube Fixture video Fixture channel" })
+    .click();
+  await expect(
+    page.getByLabel("Synchronized bilingual subtitles"),
+  ).toContainText("This is an authorized caption.");
+  await expect(
+    page.getByLabel("Synchronized bilingual subtitles"),
+  ).toContainText("Đây là phụ đề được phép sử dụng.");
+  await expect(page.getByText("Licensed publisher test fixture")).toBeVisible();
+  await page.evaluate(() => scrollTo({ top: 0, behavior: "instant" }));
+  const frameBox = await page.locator(".player-frame").boundingBox();
+  const captionBox = await page
+    .getByLabel("Synchronized bilingual subtitles")
+    .boundingBox();
+  expect(frameBox).not.toBeNull();
+  expect(captionBox).not.toBeNull();
+  expect(captionBox!.y).toBeGreaterThanOrEqual(
+    frameBox!.y + frameBox!.height - 1,
+  );
+});
+test("subtitle permission gaps are distinct from provider errors and can be retried", async ({
+  page,
+}) => {
+  let attempts = 0;
+  let providerUnavailable = true;
+  await page.route("**/transcripts/abcdefghijk", (r) => {
+    attempts++;
+    return providerUnavailable
+      ? r.fulfill({
+          status: 503,
+          json: { detail: "Subtitle provider temporarily unavailable." },
+        })
+      : r.fulfill({
+          json: {
+            available: false,
+            status: "source_not_authorized",
+            segments: [],
+          },
+        });
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "YouTube Fixture video Fixture channel" })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Could not check subtitle source",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Subtitle provider temporarily unavailable.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  providerUnavailable = false;
+  const attemptsBeforeRetry = attempts;
+  await page
+    .getByRole("button", { name: "Retry subtitle source", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "No authorized subtitle source connected",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/This does not mean the video has no captions/),
+  ).toBeVisible();
+  await expect(page.locator(".cue")).toHaveCount(0);
+  expect(attempts).toBeGreaterThan(attemptsBeforeRetry);
 });
 test("channel uploads, playlist browsing and local follows persist", async ({
   page,
@@ -168,24 +265,20 @@ test("paired authorized subtitles support EN VI modes and timing", async ({
       name: "I own this transcript or have permission to use it.",
     })
     .check();
-  await page
-    .getByLabel("Import transcript", { exact: true })
-    .setInputFiles({
-      name: "own.srt",
-      mimeType: "text/plain",
-      buffer: Buffer.from(
-        "1\n00:00:01,000 --> 00:00:03,000\nI have been learning English for three years.",
-      ),
-    });
-  await page
-    .getByLabel("Import Vietnamese transcript")
-    .setInputFiles({
-      name: "own-vi.srt",
-      mimeType: "text/plain",
-      buffer: Buffer.from(
-        "1\n00:00:01,000 --> 00:00:03,000\nTôi đã học tiếng Anh được ba năm.",
-      ),
-    });
+  await page.getByLabel("Import transcript", { exact: true }).setInputFiles({
+    name: "own.srt",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      "1\n00:00:01,000 --> 00:00:03,000\nI have been learning English for three years.",
+    ),
+  });
+  await page.getByLabel("Import Vietnamese transcript").setInputFiles({
+    name: "own-vi.srt",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      "1\n00:00:01,000 --> 00:00:03,000\nTôi đã học tiếng Anh được ba năm.",
+    ),
+  });
   const captions = page.getByLabel("Synchronized bilingual subtitles");
   await expect(captions).toContainText("Tôi đã học tiếng Anh được ba năm.");
   await expect(captions).toContainText("I have been learning");
